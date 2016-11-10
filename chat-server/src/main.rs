@@ -1,27 +1,28 @@
 use std::net::{TcpListener, TcpStream};
 use std::vec::Vec;
 use std::string::String;
-use std::io::Write;
+use std::io::{Write,BufWriter};
+use std::{thread, time};
 
 struct Application {
     clients : std::vec::Vec<TcpStream>,
+
 }
 
 impl Application {
 
     fn publish(&self, message : String) {
-
-        for mut client in &self.clients {
-        
-            client.write_fmt(format_args!("{}",message)).expect("Internal error");
-
+        for client in &self.clients {
+            let mut buffer = BufWriter::new(client);
+            writeln!(buffer, "{}", message).unwrap();
+            buffer.flush().expect("Error while writing to TCP");
         }
     }
 
     fn add_client(&mut self, client : TcpStream) {
-        
         self.clients.push(client);
         println!("New client connected");
+        thread::sleep(time::Duration::from_millis(500));
         self.publish(String::from("A client has just connected"));
     }
 
@@ -31,7 +32,7 @@ impl Application {
 fn main() {
     println!("Server chat");
     let mut app = Application{clients : Vec::new()};
-    let listener = TcpListener::bind("127.0.0.1:80").unwrap();
+    let listener = TcpListener::bind("127.0.0.1:8888").unwrap();
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {app.add_client(stream);}
