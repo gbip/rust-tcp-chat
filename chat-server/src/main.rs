@@ -2,11 +2,10 @@ use std::net::{TcpListener, TcpStream};
 use std::vec::Vec;
 use std::string::String;
 use std::io::{Write,BufWriter};
-use std::{thread, time};
 
 struct Application {
     clients : std::vec::Vec<TcpStream>,
-
+    
 }
 
 impl Application {
@@ -22,7 +21,6 @@ impl Application {
     fn add_client(&mut self, client : TcpStream) {
         self.clients.push(client);
         println!("New client connected");
-        thread::sleep(time::Duration::from_millis(500));
         self.publish(String::from("A client has just connected"));
     }
 
