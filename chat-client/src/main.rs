@@ -1,26 +1,63 @@
 extern crate tui;
+extern crate termion;
+extern crate rustc_serialize;
+
 use std::net::TcpStream;
-use std::io::{BufReader, BufRead};
+use std::io::{BufReader, BufRead, BufWriter, Write};
 use std::{thread, time};
 use std::string;
 use std::vec::Vec;
+use std::collections::BTreeMap;
+
 use tui::{Terminal, TermionBackend};
 use tui::widgets::{Widget, Block, border, List};
 use tui::layout::{Group, Rect, Direction, Size};
 use tui::terminal::Backend;
 use tui::style::{Style, Color, Modifier};
 
+use rustc_serialize::json::{Json};
+use rustc_serialize::json;
+
+use termion::event;
+
+#[derive(RustcDecodable, RustcEncodable)]
+ enum Message {
+    Author{name : String, style : String},
+    Mess{author : String, data : String},
+}
+
 struct Application {
-    
     //First string : the message, second one : the user
     message_list : Vec<(String, String)>,
-    user_color : Vec<(String, Style)>,
+    user_color : BTreeMap<String, Style>,
     size : Rect,
 }
 
+impl Application {
+
+    fn handleMessage(&mut self,mess : Message) {
+        match mess {
+        Message::Mess{author, data} => {self.message_list.push((author, data));},
+        Message::Author{name, style} => {self.user_color.insert(name, matchStyle(style)).unwrap();},
+        }
+    }
+}
+
+fn matchStyle(style : String) -> Style {
+    return Style::default().fg(Color::Yellow);
+}
+
+fn sendMessage(stream : &TcpStream, mess : Message) {
+    let mut buffer = BufWriter::new(stream);
+    buffer.write_all(&json::encode(&mess).unwrap().into_bytes()); 
+}
+
+fn onMessageReceived(mess : String, app : &mut Application) {
+    let message : Message = json::decode(&*mess).unwrap();
+    app.handleMessage(message);
+}
 
 fn draw(term : &mut Terminal<TermionBackend>, app : &Application) {
-
     let size = term.size().unwrap();
     let mut default_style =  Style::default();
     default_style.fg(Color::Yellow);
@@ -32,23 +69,20 @@ fn draw(term : &mut Terminal<TermionBackend>, app : &Application) {
                      .block(Block::default() 
                             .borders(border::ALL)
                             .title("Messages"))
-                     .items(&app.message_list.iter().map(|&(ref mess,ref usr)| (format!("{} : {}", usr, mess), &default_style))
+                     .items(&app.message_list.iter().map(|&(ref author,ref mess)| (format!("{} : {} ", author, mess), &default_style))
                             .collect::<Vec<(String, &Style)>>())
                      .render(term, &chunks[0]);
                 });
     term.draw().unwrap();
 }
 
-
-
 fn main() {
-    println!("Chat Observer");
     let mut backend = TermionBackend::new().unwrap();
     backend.clear();
     let mut terminal = Terminal::new(backend).unwrap();
     let mut app = Application{size : Rect::default(),
                             message_list : Vec::new(),
-                            user_color : Vec::new()}; 
+                            user_color : BTreeMap::new()}; 
     let stream = TcpStream::connect("127.0.0.1:8888").unwrap();
     let mut buffer = BufReader::new(stream);
     loop {

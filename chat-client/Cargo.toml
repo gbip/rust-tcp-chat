@@ -6,3 +6,4 @@ authors = ["Paul Florence <florencepaul@hotmail.fr>"]
 [dependencies]
 termion = "1.0"
 tui = "0.1"
+rustc-serialize = "0.3"
