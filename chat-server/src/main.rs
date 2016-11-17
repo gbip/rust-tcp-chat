@@ -5,7 +5,6 @@ use std::vec::Vec;
 use std::string::String;
 use std::io::{Write,BufWriter, BufReader, BufRead};
 use std::thread;
-use std::sync::Arc;
 use std::sync::mpsc::{Sender, Receiver};
 use std::sync::mpsc;
 
@@ -13,22 +12,9 @@ use std::sync::mpsc;
 use rustc_serialize::json;
 
 #[derive(RustcDecodable, RustcEncodable)]
- enum Message {
-        Author{name : String, style : String},
-        Mess{author : String, data : String},
- }
-
-struct Client {
-    thread : std::thread::Thread,
-    stream : TcpStream,
-}
-
-impl Client {
-    fn send_message(self, message : Message) {
-        let mut buffer = BufWriter::new(&self.stream);
-        buffer.write_all(&json::encode(&message).unwrap().into_bytes());
-        buffer.flush().expect("Error while writing to TCP");
-    }
+enum Message {
+    Author{name : String, style : String},
+    Mess{author : String, data : String},
 }
 
 struct Application {
@@ -38,7 +24,7 @@ struct Application {
     sender : Sender<String>,
 }
 
-fn startListening(stream : Receiver<TcpStream>, sender : Sender<String>) {
+fn start_listening(stream : Receiver<TcpStream>, sender : Sender<String>) {
     let client = stream.recv().expect("Error TcpStream received invalid");
     let mut buffer = BufReader::new(client);
     loop {
@@ -65,18 +51,18 @@ impl Application {
         }
     }
 
-    fn addClient(&mut self, client : TcpStream) {
+    fn add_client(&mut self, client : TcpStream) {
         self.clients.push(client);
         println!("New client connected");
         self.publish(Message::Mess{author : "Server".to_string(), data : "A client has just connected".to_string()});
         let stream_clone = self.clients.last().unwrap().try_clone().unwrap();
         let (send, rec) = mpsc::channel();
         let sender = self.sender.clone();
-        self.listeners.push(thread::spawn(move || startListening(rec, sender)));
+        self.listeners.push(thread::spawn(move || start_listening(rec, sender)));
         send.send(stream_clone);
     }
     
-    fn onMessageReceived(& self , mess : String){
+    fn on_message_received(& self , mess : String){
         let message : Message = json::decode(&*mess).unwrap();
         self.publish(message);
     }
@@ -91,7 +77,7 @@ fn main() {
     let listener = TcpListener::bind("127.0.0.1:8888").unwrap();
     for stream in listener.incoming() {
         match stream {
-            Ok(stream) => {app.addClient(stream);}
+            Ok(stream) => {app.add_client(stream);}
             Err(e) => println!("Connection refused from a client : {}", e),
         }
     }
