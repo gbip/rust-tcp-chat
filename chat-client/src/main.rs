@@ -41,20 +41,19 @@ impl Application {
         Message::Author{name, style} => {self.user_color.insert(name, matchStyle(style)).unwrap();},
         }
     }
+    
+    fn onMessageReceived(&mut self, mess : String) {
+        let message : Message = json::decode(&*mess).unwrap();
+        self.handleMessage(message);
+    } 
 }
 
 fn matchStyle(style : String) -> Style {
     return Style::default().fg(Color::Yellow);
 }
-
 fn sendMessage(stream : &TcpStream, mess : Message) {
     let mut buffer = BufWriter::new(stream);
     buffer.write_all(&json::encode(&mess).unwrap().into_bytes()); 
-}
-
-fn onMessageReceived(mess : String, app : &mut Application) {
-    let message : Message = json::decode(&*mess).unwrap();
-    app.handleMessage(message);
 }
 
 fn draw(term : &mut Terminal<TermionBackend>, app : &Application) {
@@ -84,7 +83,9 @@ fn main() {
                             message_list : Vec::new(),
                             user_color : BTreeMap::new()}; 
     let stream = TcpStream::connect("127.0.0.1:8888").unwrap();
-    let mut buffer = BufReader::new(stream);
+    let mut buffer = BufReader::new(&stream);
+    let first_message = Message::Author{name : "Paul".to_string(), style : "Red".to_string()};
+    sendMessage(buffer.get_ref(), first_message);
     loop {
         let size = terminal.size().unwrap();
         if size != app.size {
@@ -98,7 +99,7 @@ fn main() {
             Err(e) => panic!("eroooor : {}", e),
         };
         if data > 0 {
-            println!("{}",s);
+            app.onMessageReceived(s);
         }
     }
 }
